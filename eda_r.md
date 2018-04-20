@@ -47,21 +47,6 @@ library("SnowballC")
 library("tm")
 ```
 
-```
-## Loading required package: NLP
-```
-
-```
-## 
-## Attaching package: 'NLP'
-```
-
-```
-## The following object is masked from 'package:ggplot2':
-## 
-##     annotate
-```
-
 ```r
 toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x))
 
@@ -147,10 +132,6 @@ jobsmy <- with_dummies %>%
 ggplot(jobsmy[jobsmy$`Max Salary`<30000 & jobsmy$`Max Salary`>1000,],aes(`Max Salary`)) + geom_histogram()
 ```
 
-```
-## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-```
-
 ![](eda_r_files/figure-html/unnamed-chunk-7-1.png)<!-- -->
 
 ## Salaries data is obviously skewed 
@@ -161,29 +142,16 @@ therefore take the logarithm of salaries to obtain a roughly normal distribution
 jobsmy$lmax <- log(jobsmy$`Max Salary`)
 ```
 
-```
-## Warning in log(jobsmy$`Max Salary`): NaNs produced
-```
 
 ```r
 jobsmy$lmin <- log(jobsmy$`Min Salary`)
 ```
 
-```
-## Warning in log(jobsmy$`Min Salary`): NaNs produced
-```
 
 ```r
 ggplot(jobsmy,aes(lmax)) + geom_histogram()
 ```
 
-```
-## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-```
-
-```
-## Warning: Removed 477 rows containing non-finite values (stat_bin).
-```
 
 ![](eda_r_files/figure-html/unnamed-chunk-8-1.png)<!-- -->
 
