@@ -582,17 +582,6 @@ ggplot(jobsmy[jobsmy$lmax > 6,]) +
 * This confounding means that the observed correlation does not have a causal interpretation. The confounding effect can be eliminated by controlling for confounders in a regression.
 
 
-```
-## 
-## Attaching package: 'ggdag'
-```
-
-```
-## The following object is masked from 'package:stats':
-## 
-##     filter
-```
-
 ![](eda_r_files/figure-html/unnamed-chunk-15-1.png)<!-- -->
 
 ## Mincer wage regression 
@@ -605,16 +594,6 @@ ggplot(jobsmy[jobsmy$lmax > 6,]) +
 library(estimatr)
 ```
 
-```
-## 
-## Attaching package: 'estimatr'
-```
-
-```
-## The following object is masked from 'package:broom':
-## 
-##     tidy
-```
 
 ```r
 jobsmy[is.na(jobsmy$Experience), 'Experience'] <- mean(jobsmy$Experience, na.rm = TRUE)
