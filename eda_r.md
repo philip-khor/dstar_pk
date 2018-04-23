@@ -189,7 +189,7 @@ Data %>%
 ```r
 ggplot() + geom_polygon(data = final_map, aes(x = long, y = lat, group = group), 
                         color = 'white', fill = 'grey') + 
-  geom_point(data = Data2, aes(x = Longitude, y = Latitude, color = -count), size = .1) + theme_nothing(legend = TRUE)
+  geom_point(data = Data2, aes(x = Longitude, y = Latitude, color = -count), size = .1) + theme_nothing(legend = TRUE) + coord_fixed(1.3)
 ```
 
 ![](eda_r_files/figure-html/unnamed-chunk-8-1.png)<!-- -->
