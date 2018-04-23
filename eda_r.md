@@ -45,9 +45,7 @@ library("RColorBrewer")
 library("wordcloud")
 library("SnowballC")
 library("tm")
-```
 
-```r
 toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x))
 
 Data$Title %>% 
@@ -93,6 +91,113 @@ wordcloud(words = d$word, freq = d$freq, min.freq = 1,
 
 ![](eda_r_files/figure-html/unnamed-chunk-3-1.png)<!-- -->
 
+### Where are the jobs? 
+
+
+```r
+Data[substr(Data$Location, 1, 8) == 'MALAYSIA',] -> v
+v %>% 
+  filter(grepl('MALAYSIA', Location)) %>% 
+  dplyr::select(Location) %>%  as.matrix %>% str_squish %>% str_trim %>%
+  table %>% as.data.frame -> v 
+
+separate(v, col = ., into = c('location.a', 'location.b', 'location.c'), 
+           sep = "\\-") %>% 
+  group_by(location.b) %>% 
+  summarise(Freq = sum(Freq)) -> v2
+
+v2$location.b <- str_trim(v2$location.b)
+v2 %>% group_by(location.b) %>% summarise(Freq = sum(Freq)) -> v2
+v2$location.b  <- replace(v2$location.b, grepl("PENANG", v2$location.b), "PULAU PINANG")
+v2$location.b  <- replace(v2$location.b, grepl("TERENGGANU", v2$location.b), "TRENGGANU")
+
+v2[!grepl('TESTING', v2$location.b),] -> v3
+v3$location.b <- str_to_title(v3$location.b)
+
+population <- read_excel("population.xlsx", range = "A5:B22")
+gsub("W.P. ", "", population$States) %>% str_trim %>% str_to_title -> population$location.b
+population$location.b <- replace(population$location.b, grepl("Terengganu", population$location.b), "Trengganu")
+population <- population[population$location.b != 'MALAYSIA',]
+
+# ignore multiple locations, jobs outside Malaysia. 
+library(raster)
+myslevel1 <- getData('GADM', country='MYS', level=1)
+# myslevel1 <- readRDS("MYS_adm1.rds")
+myslevel1@data <- left_join(myslevel1@data, v3, by = c("NAME_1" = 'location.b'))
+
+data_frame(id=rownames(myslevel1@data), state=myslevel1@data$NAME_1) %>% 
+  left_join(v3, by = c("state" = 'location.b')) %>% 
+  left_join(population, by = c("state" = "location.b")) -> locationdf
+
+locationdf$jobsperthousand <- locationdf$Freq/locationdf$Total
+```
+
+
+```r
+library(ggmap)
+map <- fortify(myslevel1)
+final_map <- left_join(map, locationdf)
+
+
+final_map1 <- filter(final_map, state == "Kuala Lumpur" | state == 'Putrajaya')
+final_map2 <- filter(final_map, state != "Kuala Lumpur" & state != 'Putrajaya')
+```
+
+
+```r
+ggplot() + geom_polygon(aes(x = final_map2$long, y = final_map2$lat, 
+                            group = final_map2$group, 
+                            fill = final_map2$jobsperthousand), 
+                        color = 'white') + 
+  geom_polygon(aes(x = final_map1$long, y = final_map1$lat, 
+                            group = final_map1$group, fill = final_map1$jobsperthousand), 
+               color = 'white') +  
+  coord_fixed(1.3) + theme_bw() + 
+    scale_fill_gradientn(colours = rev(rainbow(7))) + 
+  labs(title = "Concentration of job postings by state", 
+       subtitle = "Job postings per capita ('000), JobStreet.com, 20th November 2017 to 26th January 2018",
+        caption = "Population estimates: Department of Statistics, Malaysia \n
+        Map data: GADM") + 
+  theme(legend.title = element_blank(),
+        legend.position = 'bottom',
+        axis.text = element_blank(),
+        axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        panel.border = element_blank(),
+        panel.grid = element_blank(),
+        axis.title = element_blank()) 
+```
+
+![](eda_r_files/figure-html/unnamed-chunk-6-1.png)<!-- -->
+
+```r
+remove(final_map1, final_map2)
+```
+## Simple scatter of jobs using postcode 
+
+```r
+postcode <- read_csv('my_postal_codes.csv') # source geocodes.com
+Data$postcode <- stringi::stri_extract_last_regex(Data$Address, "\\d{5}")
+Data %>% 
+  filter(!is.na(postcode)) %>% 
+  group_by(postcode) %>% 
+  summarise(count=n()) %>% 
+  left_join(postcode, by = c('postcode' = 'Postal Code'), all.x = TRUE, all.y = FALSE) -> Data2
+```
+
+
+```r
+ggplot() + geom_polygon(data = final_map, aes(x = long, y = lat, group = group), 
+                        color = 'white', fill = 'grey') + 
+  geom_point(data = Data2, aes(x = Longitude, y = Latitude, color = -count), size = .1) + theme_nothing(legend = TRUE)
+```
+
+![](eda_r_files/figure-html/unnamed-chunk-8-1.png)<!-- -->
+
+```r
+rm(final_map)
+```
+
 ## Creating dummies for education
 
 ```r
@@ -132,7 +237,11 @@ jobsmy <- with_dummies %>%
 ggplot(jobsmy[jobsmy$`Max Salary`<30000 & jobsmy$`Max Salary`>1000,],aes(`Max Salary`)) + geom_histogram()
 ```
 
-![](eda_r_files/figure-html/unnamed-chunk-7-1.png)<!-- -->
+```
+## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+```
+
+![](eda_r_files/figure-html/unnamed-chunk-12-1.png)<!-- -->
 
 ## Salaries data is obviously skewed 
 therefore take the logarithm of salaries to obtain a roughly normal distribution
@@ -140,20 +249,11 @@ therefore take the logarithm of salaries to obtain a roughly normal distribution
 
 ```r
 jobsmy$lmax <- log(jobsmy$`Max Salary`)
-```
-
-
-```r
 jobsmy$lmin <- log(jobsmy$`Min Salary`)
-```
-
-
-```r
 ggplot(jobsmy,aes(lmax)) + geom_histogram()
 ```
 
-
-![](eda_r_files/figure-html/unnamed-chunk-8-1.png)<!-- -->
+![](eda_r_files/figure-html/unnamed-chunk-13-1.png)<!-- -->
 
 ## Eliminate outliers 
 * getting rid of observations with zmax 3 standard deviations above mean 
@@ -173,7 +273,7 @@ skimr::skim(jobsmy) %>% skimr::kable(format = 'html')
 
 Skim summary statistics  
  n obs: 24160    
- n variables: 29    
+ n variables: 30    
 
 Variable type: character<table>
  <thead>
@@ -357,6 +457,15 @@ Variable type: factor<table>
    <td style="text-align:left;"> 24160 </td>
    <td style="text-align:left;"> 6192 </td>
    <td style="text-align:left;"> NA: 9220, 03-: 229, +60: 173, 603: 133 </td>
+   <td style="text-align:left;"> FALSE </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> postcode </td>
+   <td style="text-align:left;"> 11915 </td>
+   <td style="text-align:left;"> 12245 </td>
+   <td style="text-align:left;"> 24160 </td>
+   <td style="text-align:left;"> 444 </td>
+   <td style="text-align:left;"> NA: 11915, 119: 669, 592: 514, 504: 369 </td>
    <td style="text-align:left;"> FALSE </td>
   </tr>
   <tr>
@@ -559,11 +668,11 @@ Variable type: numeric<table>
 </tbody>
 </table>
 
-![](eda_r_files/figure-html/unnamed-chunk-11-1.png)<!-- -->
+![](eda_r_files/figure-html/unnamed-chunk-16-1.png)<!-- -->
 
-![](eda_r_files/figure-html/unnamed-chunk-12-1.png)<!-- -->
+![](eda_r_files/figure-html/unnamed-chunk-17-1.png)<!-- -->
 
-![](eda_r_files/figure-html/unnamed-chunk-13-1.png)<!-- -->
+![](eda_r_files/figure-html/unnamed-chunk-18-1.png)<!-- -->
 
 
 ```r
@@ -574,15 +683,14 @@ ggplot(jobsmy[jobsmy$lmax > 6,]) +
   scale_color_discrete(labels = c('Maximum', 'Minimum')) + theme_light()
 ```
 
-![](eda_r_files/figure-html/unnamed-chunk-14-1.png)<!-- -->
+![](eda_r_files/figure-html/unnamed-chunk-19-1.png)<!-- -->
 
 # Can we do better? 
 * Correlation between schooling and wages doesn't tell anything about whether an additional year of schooling provides additional wages. 
 * Older people have the potential to obtain more years of education, and people with greater ability naturally self-select into higher degrees and higher-paying jobs. 
 * This confounding means that the observed correlation does not have a causal interpretation. The confounding effect can be eliminated by controlling for confounders in a regression.
 
-
-![](eda_r_files/figure-html/unnamed-chunk-15-1.png)<!-- -->
+![](eda_r_files/figure-html/unnamed-chunk-20-1.png)<!-- -->
 
 ## Mincer wage regression 
 - The Mincer wage regression is given by log wages ~ education + experience + experience^2
@@ -594,6 +702,16 @@ ggplot(jobsmy[jobsmy$lmax > 6,]) +
 library(estimatr)
 ```
 
+```
+## 
+## Attaching package: 'estimatr'
+```
+
+```
+## The following object is masked from 'package:broom':
+## 
+##     tidy
+```
 
 ```r
 jobsmy[is.na(jobsmy$Experience), 'Experience'] <- mean(jobsmy$Experience, na.rm = TRUE)
